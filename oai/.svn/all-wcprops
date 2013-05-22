@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/dlib/!svn/ver/11555/unioncat/trunk
+END
+err_list.txt
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/dlib/!svn/ver/11663/unioncat/trunk/err_list.txt
+END
+acceptable_verbs.txt
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/dlib/!svn/ver/11592/unioncat/trunk/acceptable_verbs.txt
+END
+solr_query.rb
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/dlib/!svn/ver/11972/unioncat/trunk/solr_query.rb
+END
+crosswalk.txt
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/dlib/!svn/ver/11591/unioncat/trunk/crosswalk.txt
+END
+solr_nyu_core_map.txt
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/dlib/!svn/ver/11556/unioncat/trunk/solr_nyu_core_map.txt
+END

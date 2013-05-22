@@ -1,0 +1,27 @@
+<html>
+<head>
+<title>uc-oai-demo</title>
+<script src="js/demo.js" type="text/javascript" charset="utf-8"></script>
+</head>
+<body>
+<form name="oai-form" id="oai-form" method="get" action="oai/">
+<select name="verb" id="pick_verb">
+<option value="">Please pick a verb</option>
+<option value="ListRecords">ListRecords</option>
+<option value="Identify">Identify</option>
+</select>
+<select name="metadataPrefix" id="md_prefix">
+<option value="">Please pick a metadata format</option>
+<option value="oai_dc">OAI DC</option>
+<option value="nyu-core">NYU-CORE</option>
+<option value="primo">PRIMO</option>
+</select>
+FROM:<input type="text" onfocus="clrTxt(this)" name="from" value=""/> TO:<input type="text" name="until" value="" onfocus="clrTxt(this)"/>
+<span id="start_search" style="background-color:gray; color:white; cursor:pointer; padding:2px; border:thin solid black"  onclick="startSearch()">GO</span>
+</form>
+
+
+
+
+</body>
+</html>

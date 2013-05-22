@@ -1,0 +1,14 @@
+#SOLR NYU-CORE oai_dc
+dc_identifier dc:identifier dc:identifier 
+url nyu:accessURL dc:identifier 
+type dc:type dc:type
+bundle_name dc:type dc:type
+dc_creator dc:creator dc:creator
+label dc:title dc:title
+sm_field_awdl_subject dc:subject dc:subject
+sm_field_awdl_publisher dc:publisher dc:publisher
+nyu_collection_title dcterms:isPartOf dc:relation
+language dc:language dc:language
+ds_created dcterms:created dc:date
+dc_changed dcterms:modified dc:date
+content nyu:fullText

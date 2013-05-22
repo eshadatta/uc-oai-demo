@@ -1,0 +1,9 @@
+#code stmt
+badArgument,contains illegal arguments or is missing an argument
+badVerb,Illegal OAI Verb
+cannotDisseminateFormat,The metadata format is not supported by the repository
+idDoesNotExist,This value does not exist in the repository
+noRecordsMatch,No records were returned
+noMetadataFormats,No metadata formats available for the specified item
+noSetHierarchy,The repository does not support sets
+badResumptionToken,Resumption Token is not supported

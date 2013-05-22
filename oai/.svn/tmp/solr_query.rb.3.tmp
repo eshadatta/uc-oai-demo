@@ -1,0 +1,326 @@
+#!/home/dlib/datta/dev-pa-ruby
+###############################################################################
+# Copyright (c) 2011 New York University 
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or 
+# without modification, are permitted for nonprofit educational 
+# purposes provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above 
+#    copyright notice, this list of conditions and the following 
+#    disclaimer. 
+# 2. Redistributions in binary form must reproduce the above 
+#    copyright notice, this list of conditions and the following 
+#    disclaimer in the documentation and/or other materials 
+#    provided with the distribution. 
+# 3. All advertising materials mentioning features or use of 
+#    this software must display the following acknowledgement: 
+#    This product includes software developed by New York 
+#    University and its contributors. 
+# 4. Neither the name of the University nor the names of its 
+#    contributors may be used to endorse or promote products 
+#    derived from this software without specific prior written 
+#    permission.
+# 5. This software is not used nor made available for use as 
+#    part of a for-profit service without specific prior written 
+#    permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE UNIVERSITY AND CONTRIBUTORS 
+# ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, 
+# BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
+# AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO 
+# EVENT SHALL THE UNIVERSITY OR CONTRIBUTORS BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, 
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED 
+# AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+#
+###############################################################################
+# $Id$
+###############################################################################
+
+require 'cgi'
+require 'net/https'
+require 'uri'
+
+
+MAP_FILE = 'crosswalk.txt'
+VERB_LIST = 'acceptable_verbs.txt'
+ERR_LIST = 'err_list.txt'
+MD_LIST = ["oai_dc","nyu-core","stoopid-primo"]
+QUERY_URL = "http://dev-dl-pa.home.nyu.edu/solr_discovery_dev/select/?"
+EARLIEST_DATE = "wt=ruby&sort=created%20asc&fl=created"
+
+
+def get_verbs(verb_list)
+    file=File.new(verb_list,'r')
+    verbs = Array.new
+    v = 0
+    while (line = file.gets)
+        verbs[v] = line.chomp
+        v += 1
+    end
+    return verbs
+end
+
+def get_err(err_list)
+    file=File.new(err_list,'r')
+    err = Hash.new
+    line_count = 0
+    while (line = file.gets)
+          if line_count > 0
+             err_code,err_stmt = line.split(',')
+             err[err_code] = err_stmt.chomp
+          end
+          line_count = line_count + 1
+    end
+    return err
+end
+def err_stmt(code,err_hsh)
+    if err_hsh.has_key?(code)
+       err_msg = err_hsh[code]
+       err = '<error code="'+code+'">'+err_msg+'</error>'
+       return err
+    end
+end
+
+def chk_cmd(verb,verb_list,err_hsh,metadata,from,to,resumption)
+   err = ""
+   if ! verb_list.include?(verb)
+       err =  err_stmt('badVerb',err_hsh) 
+   elsif verb == "ListSets"
+       err = err_stmt('noSetHierarchy',err_hsh)
+   elsif verb == "Identify"
+         err = verb     
+         if from != "" || to != "" || MD_LIST.include?(metadata)
+            err = err_stmt('badArgument',err_hsh)
+         end
+   elsif resumption != ""
+         err = err_stmt('badResumptionToken',err_hsh)
+   elsif from != "" || to != ""
+         from_date_chk = validate_date_format(from)
+         to_date_chk = validate_date_format(to)
+         earliest_date = get_earliest_date_stamp
+         #ensure from and until values have similar levels of granularity
+         if ((from != "" && to != "") && (from_date_chk != to_date_chk))
+            err = err_stmt('badArgument',err_hsh)
+         #ensure from and until values have correct date format
+         elsif ((from != ""  && from_date_chk == "") || (to != "" && to_date_chk == ""))
+            err = err_stmt('badArgument',err_hsh)
+         #ensure until values is greater than earliest datestamp
+         elsif to < earliest_date
+            err = err_stmt('noRecordsMatch',err_hsh)
+         end
+   elsif ! MD_LIST.include?(metadata)
+       err = err_stmt('badArgument',err_hsh)
+   end
+   return err
+end
+
+def get_map(file)
+    file=File.new(file,'r')
+    element_map = Hash.new
+    line_count = 0
+    while (line = file.gets)
+          if line_count > 0 
+             solr,nyu_core,dc = line.split(' ')
+             element_map[solr] = [nyu_core,dc]
+          end 
+          line_count = line_count + 1
+    end
+    return element_map 
+end
+
+
+def gen_md_rec(md_prefix,tag_type)
+  
+   if md_prefix == 'nyu-core' 
+      if tag_type == 'start'
+         puts '<nyu:NYUCoreRecord xmlns:dc="http://purl.org/dc/elements/1.1/"
+                  xmlns:dcterms="http://purl.org/dc/terms/"
+                  xmlns:nyu="http://purl.org/nyu/digicat/"
+                  xmlns:xml="http://www.w3.org/XML/1998/namespace"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://purl.org/nyu/digicat/ http://harper.bobst.nyu.edu/data/nyucore.xsd">'
+      elsif tag_type == 'end'
+        puts "</nyu:NYUCoreRecord>"
+      end
+   elsif md_prefix == 'oai_dc' 
+      if tag_type == 'start'
+         puts '<oai_dc:dc 
+          xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" 
+          xmlns:dc="http://purl.org/dc/elements/1.1/" 
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+          xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ 
+          http://www.openarchives.org/OAI/2.0/oai_dc.xsd">'
+      elsif tag_type == 'end'
+          puts '</oai_dc:dc>'
+      end
+   end
+end
+def map_result(md_prefix)
+    index=0
+    if md_prefix == 'oai_dc' 
+       index = 1
+    end  
+    return index
+end
+def gen_oai_rec(element_map,rsp,verb,md_prefix)
+       puts "<#{verb}>" 
+    rsp['response']['docs'].each { |doc|
+       puts "<record>" 
+       puts "<header>" 
+       puts "<identifier>#{doc['dc_identifier']}</identifier>" 
+       puts "<datestamp>#{doc['created']}</datestamp>"
+       puts "</header>" 
+       puts "<metadata>" 
+       gen_md_rec(md_prefix,'start')
+       index = map_result(md_prefix)
+       element_map.each{|solr,map_array|
+          if doc.key?(solr)
+             puts "<#{map_array[index]}>#{doc[solr]}</#{map_array[index]}>"
+          end
+       }
+        gen_md_rec(md_prefix,'end')
+        puts "</metadata>" 
+        puts "</record>" 
+    }
+        puts "</#{verb}>" 
+       
+end
+
+def format_date(value)
+sprintf("%02d",value)
+end
+
+def get_date
+time = Time.new
+month = format_date(time.month)
+day = format_date(time.day) 
+hour = format_date(time.hour) 
+min = format_date(time.min) 
+sec = format_date(time.sec) 
+
+datestamp = "#{time.year}-#{month}-#{day}T#{hour}:#{min}:#{sec}Z"
+
+return datestamp
+end
+
+def generate_request_header(verb,addn_params)
+puts '<request verb='+'"'+verb+'"' + addn_params + '>http://dev-dl-pa.home.nyu.edu/uc-oai-demo/</request>'
+
+end
+
+def get_earliest_date_stamp
+    date_query = QUERY_URL + EARLIEST_DATE
+    dates_result = Net::HTTP.get(URI.parse(date_query))
+    dates = eval(dates_result)
+    earliest_date = dates['response']['docs'][0]['created']
+   
+    return earliest_date
+end
+
+def identify_result
+earliest_date = get_earliest_date_stamp
+puts "<Identify>
+    <repositoryName>NYU Libraries Union Catalog</repositoryName> 
+    <baseURL>http://dev-dl-pa.home.nyu.edu/uc-oai-demo/oai/</baseURL>
+    <protocolVersion>2.0</protocolVersion>
+    <adminEmail>esha@nyu.edu</adminEmail>
+    <earliestDatestamp>#{earliest_date}</earliestDatestamp>
+    <deletedRecord>no</deletedRecord>
+    <granularity>YYYY-MM-DDThh:mm:ssZ</granularity>
+    </Identify>"
+
+end
+
+def add_root_element
+puts "Content-Type: text/xml"
+puts # this is necessary
+puts '<?xml version="1.0" encoding="UTF-8"?>'
+puts '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/
+         http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">'
+datestamp = get_date 
+puts "<responseDate>#{datestamp}</responseDate>"
+end
+
+def validate_date_format(date)
+    chk_date=""
+    if (date =~ /\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}Z/)
+        chk_date = "timestamp"
+    elsif (date =~ /\d{4}-\d{2}-\d{2}/)
+        chk_date = "date"
+    end
+
+    return chk_date
+
+end
+
+def list_records_header(from_date,to_date,md)
+    d_query = ""
+    response_param = ""
+     date_query = ""
+     if (from_date !=  "" && to_date == "")
+       to_date = get_date
+       date_query = " created:[#{from_date} TO #{to_date}] OR changed:[#{from_date} TO #{to_date}]"
+       response_param = ' from='+'"'+from_date+'"'
+     elsif (from_date !=  "" && to_date != "")
+       date_query = " created:[#{from_date} TO #{to_date}] OR changed:[#{from_date} TO #{to_date}]"
+       response_param = ' from="'+from_date+'" until='+'"'+to_date+'"'
+     elsif (from_date == "" && to_date != "")
+       from_date = get_earliest_date_stamp
+       date_query = " created:[#{from_date} TO #{to_date}] OR changed:[#{from_date} TO #{to_date}]"
+     elsif (from_date == "" && to_date == "")
+       date_query = ""
+     end
+     if md != ""
+        response_param += ' metadataPrefix="'+md+'"'
+     end
+    d_query = date_query
+    str = Array.new
+    str = [d_query,response_param]
+    return str
+end
+cgi = CGI.new("html4")
+
+element_map = get_map(MAP_FILE)
+
+oai_verb = URI.escape(cgi["verb"])
+md_prefix = URI.escape(cgi["metadataPrefix"])
+resumption = URI.escape(cgi["resumptionToken"])
+#from_date = validate_date_format(URI.escape(cgi["from"]))
+#to_date = validate_date_format(URI.escape(cgi["until"]))
+query_str = list_records_header(URI.escape(cgi["from"]),URI.escape(cgi["until"]),md_prefix)
+date_query = query_str[0] 
+addn_params = query_str[1]
+solr_verb = ""
+verb_list=get_verbs(VERB_LIST)
+err_list = get_err(ERR_LIST)
+
+add_root_element
+generate_request_header(oai_verb,addn_params)
+chk_err = chk_cmd(oai_verb,verb_list,err_list,md_prefix,URI.escape(cgi["from"]),URI.escape(cgi["until"]),resumption)
+if chk_err.include?'Identify'
+   identify_result
+elsif ! chk_err.include?'error'
+     if oai_verb == "ListRecords"
+        #query = "id:[* TO *]#{date_query}" 
+        query = "#{date_query}" 
+        solr_verb = URI.escape(query)
+      end
+   myQuery = QUERY_URL + solr_verb +"&wt=ruby"
+   res = Net::HTTP.get(URI.parse(myQuery))
+   rsp = eval(res)
+
+   gen_oai_rec(element_map,rsp,oai_verb,md_prefix)
+else
+  puts chk_err 
+end
+puts "</OAI-PMH>"

@@ -1,0 +1,6 @@
+ListRecords
+ListSets
+Identify
+ListMetadataFormats
+ListIdentifiers
+GetRecord
